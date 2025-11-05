@@ -1,30 +1,31 @@
-package com.team184.scanner;
+package com.securityscanner.scanner;
 
 import java.net.*;
 import java.io.*;
-import java.net.URLEncoder;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public class OpenAPIParserSimple {
     
     private static final String BASE_URL = "https://vbank.open.bankingapi.ru";
     
     public static void main(String[] args) {
-        System.out.println("🚀 Starting Simple OpenAPI Parser...");
+        System.out.println("🚀 Starting OpenAPI Parser...");
         
         try {
             String openApiSpec = getOpenAPISpecification();
             
             if (openApiSpec != null) {
-                System.out.println("✅ Successfully retrieved OpenAPI specification");
-                System.out.println("📊 Specification length: " + openApiSpec.length() + " characters");
+                System.out.println("✅ Success! Specification length: " + openApiSpec.length() + " chars");
                 
-                // Простой анализ без JSON парсера
-                simpleAnalysis(openApiSpec);
+                // Сохраним красиво отформатированный JSON
+                savePrettyJson(openApiSpec, "vbank_openapi_pretty.json");
+                System.out.println("💾 Saved as formatted JSON to: vbank_openapi_pretty.json");
                 
-                // Сохраним для ручного анализа
-                saveSpecToFile(openApiSpec, "vbank_openapi_simple.json");
+                // Быстрый анализ
+                quickAnalysis(openApiSpec);
             } else {
-                System.out.println("❌ Could not find OpenAPI specification");
+                System.out.println("❌ No OpenAPI spec found");
             }
             
         } catch (Exception e) {
@@ -33,43 +34,39 @@ public class OpenAPIParserSimple {
         }
     }
     
-    private static String getOpenAPISpecification() throws Exception {
-        System.out.println("🔍 Searching for OpenAPI specification...");
-        
-        String[] openApiPaths = {
+    private static String getOpenAPISpecification() {
+        String[] paths = {
             "/openapi.json",
-            "/swagger.json", 
-            "/v3/api-docs",
+            "/swagger.json",
+            "/v3/api-docs", 
             "/api-docs",
             "/docs/swagger.json",
-            "/swagger/v1/swagger.json"
+            "/swagger/v1/swagger.json",
+            "/.well-known/openapi.json"
         };
         
-        for (String path : openApiPaths) {
-            System.out.println("Trying: " + BASE_URL + path);
-            String spec = tryGetOpenAPI(path);
-            if (spec != null && !spec.isEmpty() && spec.contains("openapi") && spec.contains("paths")) {
-                System.out.println("✅ Found valid OpenAPI at: " + path);
+        for (String path : paths) {
+            System.out.println("🔍 Trying: " + path);
+            String spec = fetchURL(BASE_URL + path);
+            if (spec != null && spec.contains("openapi") && spec.contains("paths")) {
+                System.out.println("✅ Found at: " + path);
                 return spec;
             }
         }
-        
         return null;
     }
     
-    private static String tryGetOpenAPI(String path) {
+    private static String fetchURL(String urlString) {
         try {
-            URL url = new URL(BASE_URL + path);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
+            URL url = new URL(urlString);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
             
-            int responseCode = connection.getResponseCode();
-            if (responseCode == 200) {
+            if (conn.getResponseCode() == 200) {
                 StringBuilder response = new StringBuilder();
-                try (BufferedReader br = new BufferedReader(
-                        new InputStreamReader(connection.getInputStream()))) {
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
                     String line;
                     while ((line = br.readLine()) != null) {
                         response.append(line);
@@ -78,54 +75,141 @@ public class OpenAPIParserSimple {
                 return response.toString();
             }
         } catch (Exception e) {
-            // Continue to next path
+            // Ignore and try next
         }
         return null;
     }
     
-    private static void simpleAnalysis(String openApiJson) {
-        System.out.println("\n=== SIMPLE OPENAPI ANALYSIS ===");
-        
-        // Поиск базовой информации
-        if (openApiJson.contains("\"title\"")) {
-            int titleStart = openApiJson.indexOf("\"title\":") + 8;
-            int titleEnd = openApiJson.indexOf("\"", titleStart);
-            String title = openApiJson.substring(titleStart, titleEnd);
-            System.out.println("📋 API Title: " + title);
-        }
-        
-        if (openApiJson.contains("\"version\"")) {
-            int versionStart = openApiJson.indexOf("\"version\":") + 10;
-            int versionEnd = openApiJson.indexOf("\"", versionStart);
-            String version = openApiJson.substring(versionStart, versionEnd);
-            System.out.println("🔢 API Version: " + version);
-        }
-        
-        // Подсчет эндпоинтов
-        int pathCount = countOccurrences(openApiJson, "\"/");
-        System.out.println("📊 Estimated endpoints: " + pathCount);
-        
-        // Поиск методов
-        String[] methods = {"\"get\"", "\"post\"", "\"put\"", "\"delete\"", "\"patch\""};
-        for (String method : methods) {
-            int count = countOccurrences(openApiJson, method);
-            if (count > 0) {
-                System.out.println("   " + method.toUpperCase() + " methods: " + count);
+    private static void savePrettyJson(String json, String filename) {
+        try {
+            // Простое форматирование JSON с отступами
+            String prettyJson = formatJson(json);
+            
+            try (FileWriter writer = new FileWriter(filename)) {
+                writer.write(prettyJson);
             }
-        }
-        
-        // Поиск security schemes
-        if (openApiJson.contains("securitySchemes")) {
-            System.out.println("🔐 Security schemes defined");
-        }
-        
-        // Поиск компонентов
-        if (openApiJson.contains("\"components\"")) {
-            System.out.println("🏗️ Components section found");
+            System.out.println("📁 File saved: " + new File(filename).getAbsolutePath());
+        } catch (Exception e) {
+            System.err.println("❌ Could not save file: " + e.getMessage());
+            // Сохраним как есть если форматирование не удалось
+            try (FileWriter writer = new FileWriter(filename)) {
+                writer.write(json);
+            } catch (Exception ex) {
+                System.err.println("❌ Could not save at all: " + ex.getMessage());
+            }
         }
     }
     
-    private static int countOccurrences(String text, String pattern) {
+    private static String formatJson(String json) {
+        StringBuilder pretty = new StringBuilder();
+        int indentLevel = 0;
+        boolean inQuotes = false;
+        
+        for (char c : json.toCharArray()) {
+            switch (c) {
+                case '{':
+                case '[':
+                    pretty.append(c);
+                    if (!inQuotes) {
+                        pretty.append("\n");
+                        indentLevel++;
+                        appendIndent(pretty, indentLevel);
+                    }
+                    break;
+                    
+                case '}':
+                case ']':
+                    if (!inQuotes) {
+                        pretty.append("\n");
+                        indentLevel--;
+                        appendIndent(pretty, indentLevel);
+                    }
+                    pretty.append(c);
+                    break;
+                    
+                case ',':
+                    pretty.append(c);
+                    if (!inQuotes) {
+                        pretty.append("\n");
+                        appendIndent(pretty, indentLevel);
+                    }
+                    break;
+                    
+                case ':':
+                    pretty.append(c);
+                    if (!inQuotes) {
+                        pretty.append(" ");
+                    }
+                    break;
+                    
+                case '"':
+                    pretty.append(c);
+                    inQuotes = !inQuotes;
+                    break;
+                    
+                default:
+                    pretty.append(c);
+                    break;
+            }
+        }
+        
+        return pretty.toString();
+    }
+    
+    private static void appendIndent(StringBuilder sb, int level) {
+        for (int i = 0; i < level; i++) {
+            sb.append("  "); // 2 пробела на уровень
+        }
+    }
+    
+    private static void quickAnalysis(String spec) {
+        System.out.println("\n📊 Quick Analysis:");
+        
+        // OpenAPI version
+        if (spec.contains("\"openapi\"")) {
+            int start = spec.indexOf("\"openapi\":") + 10;
+            int end = spec.indexOf("\"", start);
+            System.out.println("🔢 OpenAPI Version: " + spec.substring(start, end));
+        }
+        
+        // Count endpoints
+        int endpointCount = countMatches(spec, "\"/");
+        System.out.println("📈 Estimated endpoints: " + endpointCount);
+        
+        // Count methods
+        System.out.println("🛠️ Methods:");
+        System.out.println("   GET: " + countMatches(spec, "\"get\""));
+        System.out.println("   POST: " + countMatches(spec, "\"post\""));
+        System.out.println("   PUT: " + countMatches(spec, "\"put\""));
+        System.out.println("   DELETE: " + countMatches(spec, "\"delete\""));
+        
+        // Check for security
+        if (spec.contains("securitySchemes")) {
+            System.out.println("🔐 Security schemes defined");
+        }
+        
+        // Show some endpoints
+        System.out.println("\n🔗 Sample endpoints:");
+        showSampleEndpoints(spec);
+    }
+    
+    private static void showSampleEndpoints(String spec) {
+        // Найдем первые 5 эндпоинтов
+        int count = 0;
+        int index = 0;
+        
+        while (count < 5 && (index = spec.indexOf("\"/", index)) != -1) {
+            int end = spec.indexOf("\"", index + 2);
+            if (end != -1) {
+                String endpoint = spec.substring(index + 1, end);
+                System.out.println("   " + endpoint);
+                count++;
+            }
+            index = end;
+        }
+    }
+    
+    private static int countMatches(String text, String pattern) {
         int count = 0;
         int index = 0;
         while ((index = text.indexOf(pattern, index)) != -1) {
@@ -133,17 +217,5 @@ public class OpenAPIParserSimple {
             index += pattern.length();
         }
         return count;
-    }
-    
-    private static void saveSpecToFile(String spec, String filename) {
-        try {
-            File file = new File(filename);
-            try (FileWriter writer = new FileWriter(file)) {
-                writer.write(spec);
-            }
-            System.out.println("💾 Saved to: " + file.getAbsolutePath());
-        } catch (Exception e) {
-            System.err.println("❌ Could not save file: " + e.getMessage());
-        }
     }
 }

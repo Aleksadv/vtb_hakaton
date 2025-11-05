@@ -1,4 +1,4 @@
-package com.team184.scanner;
+package com.securityscanner.scanner;
 
 import java.net.*;
 import java.io.*;
