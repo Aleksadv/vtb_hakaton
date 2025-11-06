@@ -10,26 +10,26 @@ public class OpenAPIParserSimple {
     private static final String BASE_URL = "https://vbank.open.bankingapi.ru";
     
     public static void main(String[] args) {
-        System.out.println("🚀 Starting OpenAPI Parser...");
+        System.out.println("Starting OpenAPI Parser...");
         
         try {
             String openApiSpec = getOpenAPISpecification();
             
             if (openApiSpec != null) {
-                System.out.println("✅ Success! Specification length: " + openApiSpec.length() + " chars");
+                System.out.println("Success! Specification length: " + openApiSpec.length() + " chars");
                 
                 // Сохраним красиво отформатированный JSON
                 savePrettyJson(openApiSpec, "vbank_openapi_pretty.json");
-                System.out.println("💾 Saved as formatted JSON to: vbank_openapi_pretty.json");
+                System.out.println("Saved as formatted JSON to: vbank_openapi_pretty.json");
                 
                 // Быстрый анализ
                 quickAnalysis(openApiSpec);
             } else {
-                System.out.println("❌ No OpenAPI spec found");
+                System.out.println("No OpenAPI spec found");
             }
             
         } catch (Exception e) {
-            System.err.println("❌ Error: " + e.getMessage());
+            System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -46,10 +46,10 @@ public class OpenAPIParserSimple {
         };
         
         for (String path : paths) {
-            System.out.println("🔍 Trying: " + path);
+            System.out.println("Trying: " + path);
             String spec = fetchURL(BASE_URL + path);
             if (spec != null && spec.contains("openapi") && spec.contains("paths")) {
-                System.out.println("✅ Found at: " + path);
+                System.out.println("Found at: " + path);
                 return spec;
             }
         }
@@ -88,14 +88,14 @@ public class OpenAPIParserSimple {
             try (FileWriter writer = new FileWriter(filename)) {
                 writer.write(prettyJson);
             }
-            System.out.println("📁 File saved: " + new File(filename).getAbsolutePath());
+            System.out.println("File saved: " + new File(filename).getAbsolutePath());
         } catch (Exception e) {
-            System.err.println("❌ Could not save file: " + e.getMessage());
+            System.err.println("Could not save file: " + e.getMessage());
             // Сохраним как есть если форматирование не удалось
             try (FileWriter writer = new FileWriter(filename)) {
                 writer.write(json);
             } catch (Exception ex) {
-                System.err.println("❌ Could not save at all: " + ex.getMessage());
+                System.err.println("Could not save at all: " + ex.getMessage());
             }
         }
     }
@@ -163,21 +163,21 @@ public class OpenAPIParserSimple {
     }
     
     private static void quickAnalysis(String spec) {
-        System.out.println("\n📊 Quick Analysis:");
+        System.out.println("\nQuick Analysis:");
         
         // OpenAPI version
         if (spec.contains("\"openapi\"")) {
             int start = spec.indexOf("\"openapi\":") + 10;
             int end = spec.indexOf("\"", start);
-            System.out.println("🔢 OpenAPI Version: " + spec.substring(start, end));
+            System.out.println("OpenAPI Version: " + spec.substring(start, end));
         }
         
         // Count endpoints
         int endpointCount = countMatches(spec, "\"/");
-        System.out.println("📈 Estimated endpoints: " + endpointCount);
+        System.out.println("Estimated endpoints: " + endpointCount);
         
         // Count methods
-        System.out.println("🛠️ Methods:");
+        System.out.println("Methods:");
         System.out.println("   GET: " + countMatches(spec, "\"get\""));
         System.out.println("   POST: " + countMatches(spec, "\"post\""));
         System.out.println("   PUT: " + countMatches(spec, "\"put\""));
@@ -185,11 +185,11 @@ public class OpenAPIParserSimple {
         
         // Check for security
         if (spec.contains("securitySchemes")) {
-            System.out.println("🔐 Security schemes defined");
+            System.out.println("Security schemes defined");
         }
         
         // Show some endpoints
-        System.out.println("\n🔗 Sample endpoints:");
+        System.out.println("\nSample endpoints:");
         showSampleEndpoints(spec);
     }
     

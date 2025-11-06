@@ -12,24 +12,24 @@ public class BankingAPIScanner {
     private static final String CLIENT_SECRET = "EdJ457cTlEq6svh7BOB6rPML1BcMvjQI";
     
     public static void main(String[] args) {
-        System.out.println("🚀 Starting Banking API Security Scanner...");
+        System.out.println("Starting Banking API Security Scanner...");
         
         try {
             // 1. Получаем access token
             String accessToken = getAccessToken();
-            System.out.println("✅ Access Token received: " + accessToken.substring(0, Math.min(20, accessToken.length())) + "...");
+            System.out.println("Access Token received: " + accessToken.substring(0, Math.min(20, accessToken.length())) + "...");
             
             // 2. Тестируем API endpoints
             testAPIEndpoints(accessToken);
             
         } catch (Exception e) {
-            System.err.println("❌ Error: " + e.getMessage());
+            System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
         }
     }
     
     private static String getAccessToken() throws Exception {
-        System.out.println("🔑 Requesting access token...");
+        System.out.println("Requesting access token...");
         
         String formData = "grant_type=client_credentials" +
                          "&client_id=" + URLEncoder.encode(CLIENT_ID, "UTF-8") +
@@ -47,7 +47,7 @@ public class BankingAPIScanner {
         }
         
         int responseCode = connection.getResponseCode();
-        System.out.println("📡 Auth response status: " + responseCode);
+        System.out.println("Auth response status: " + responseCode);
         
         StringBuilder response = new StringBuilder();
         try (BufferedReader br = new BufferedReader(
@@ -116,7 +116,7 @@ public class BankingAPIScanner {
             analyzeEndpointResponse(endpoint, responseCode, responseBody);
             
         } catch (Exception e) {
-            System.out.println("❌ " + endpoint + " -> Error: " + e.getClass().getSimpleName());
+            System.out.println(" " + endpoint + " -> Error: " + e.getClass().getSimpleName());
         }
     }
     
@@ -125,29 +125,29 @@ public class BankingAPIScanner {
         
         switch (responseCode) {
             case 200:
-                System.out.println("✅ " + endpoint + " -> 200 OK");
+                System.out.println(" " + endpoint + " -> 200 OK");
                 checkForVulnerabilities(endpoint, responseBody);
                 break;
             case 201:
-                System.out.println("✅ " + endpoint + " -> 201 Created");
+                System.out.println(" " + endpoint + " -> 201 Created");
                 break;
             case 400:
-                System.out.println("📋 " + endpoint + " -> 400 Bad Request");
+                System.out.println(" " + endpoint + " -> 400 Bad Request");
                 break;
             case 401:
-                System.out.println("🔐 " + endpoint + " -> 401 Unauthorized");
+                System.out.println(" " + endpoint + " -> 401 Unauthorized");
                 break;
             case 403:
-                System.out.println("🚫 " + endpoint + " -> 403 Forbidden");
+                System.out.println(" " + endpoint + " -> 403 Forbidden");
                 break;
             case 404:
-                System.out.println("❓ " + endpoint + " -> 404 Not Found");
+                System.out.println(" " + endpoint + " -> 404 Not Found");
                 break;
             case 500:
-                System.out.println("💥 " + endpoint + " -> 500 Server Error");
+                System.out.println(" " + endpoint + " -> 500 Server Error");
                 break;
             default:
-                System.out.println("📡 " + endpoint + " -> " + responseCode);
+                System.out.println(" " + endpoint + " -> " + responseCode);
         }
         
         if (responseCode != 404 && responseCode != 500) {
@@ -164,13 +164,13 @@ public class BankingAPIScanner {
         
         for (String pattern : sensitivePatterns) {
             if (responseBody.toLowerCase().contains(pattern)) {
-                System.out.println("   🚨 SENSITIVE DATA: " + pattern);
+                System.out.println(" SENSITIVE DATA: " + pattern);
             }
         }
         
         // Check for excessive data
         if (responseBody.length() > 10000) {
-            System.out.println("   ⚠️  LARGE RESPONSE: " + responseBody.length() + " chars");
+            System.out.println(" LARGE RESPONSE: " + responseBody.length() + " chars");
         }
     }
     
@@ -225,7 +225,7 @@ public class BankingAPIScanner {
                 
                 int responseCode = connection.getResponseCode();
                 if (responseCode == 200) {
-                    System.out.println("   🚨 AUTH BYPASS: " + endpoint + " accessible without token");
+                    System.out.println(" AUTH BYPASS: " + endpoint + " accessible without token");
                 }
             } catch (Exception e) {
                 // Continue
