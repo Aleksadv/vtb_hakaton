@@ -11,8 +11,8 @@ echo -e "${BLUE}Building Security Scanner Project${NC}"
 echo "========================================"
 
 # Configuration
-SRC_DIR="../src/main/java"
-BUILD_DIR="../build/classes"
+SRC_DIR="./src/main/java"
+BUILD_DIR="./build/classes"
 JAVAC="javac"
 JAVAC_FLAGS="-encoding UTF-8 -Xlint:deprecation"
 
@@ -55,14 +55,6 @@ else
     echo -e "${RED} Build failed!${NC}"
     exit 1
 fi
-
-# Create run script
-echo -e "${YELLOW} Creating run script...${NC}"
-cat > run.sh << 'EOF'
-#!/bin/bash
-./run-scanner.sh "$@"
-EOF
-chmod +x run.sh
 
 echo -e "${GREEN} Build completed successfully!${NC}"
 echo -e "${BLUE} Now you can run: ./run-scanner.sh [command]${NC}"
