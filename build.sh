@@ -49,12 +49,28 @@ if [ $? -eq 0 ]; then
     echo "  - Build directory: $(pwd)/$BUILD_DIR"
     echo "  - Compiled classes: $(find $BUILD_DIR -name "*.class" | wc -l)"
     echo "  - Main classes:"
-    echo "      * com.securityscanner.scanner.OpenAPIParserSimple"
-    echo "      * com.securityscanner.scanner.BankingAPIScanner"
+    
+    # Проверяем какие главные классы скомпилировались
+    if [ -f "$BUILD_DIR/com/securityscanner/auditor/APISecurityAuditor.class" ]; then
+        echo -e "      * ${GREEN}com.securityscanner.auditor.APISecurityAuditor (NEW)${NC}"
+    fi
+    
+    if [ -f "$BUILD_DIR/com/securityscanner/scanner/OpenAPIParserSimple.class" ]; then
+        echo "      * com.securityscanner.scanner.OpenAPIParserSimple"
+    fi
+    
+    if [ -f "$BUILD_DIR/com/securityscanner/scanner/BankingAPIScanner.class" ]; then
+        echo "      * com.securityscanner.scanner.BankingAPIScanner"
+    fi
+    
 else
     echo -e "${RED} Build failed!${NC}"
     exit 1
 fi
 
 echo -e "${GREEN} Build completed successfully!${NC}"
-echo -e "${BLUE} Now you can run: ./run-scanner.sh [command]${NC}"
+echo -e "${BLUE} Available commands:${NC}"
+echo "  ./run.sh                    - Run APISecurityAuditor (NEW)"
+echo "  ./run-scanner.sh parser     - Run only OpenAPI Parser"
+echo "  ./run-scanner.sh scanner    - Run only Security Scanner"
+echo "  ./run-scanner.sh all        - Run both tools"
