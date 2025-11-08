@@ -4,4 +4,4 @@
 *.log
 .idea/
 *.iml
-
+/scanner.env
