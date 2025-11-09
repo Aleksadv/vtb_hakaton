@@ -13,7 +13,7 @@ import java.util.*;
  * Дополнительная проверка основных эндпоинтов на доступность и корректность работы
  */
 public class APIHealthPlugin implements SecurityPlugin {
-    @Override public String id() { return "API:Health"; }
+    @Override public String id() { return "API: Health"; }
     @Override public String title() { return "API Health Check"; }
     @Override public String description() { return "Проверка доступности и корректности основных эндпоинтов"; }
 

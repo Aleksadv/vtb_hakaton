@@ -6,3 +6,4 @@
 *.iml
 /scanner.env
 /reports/
+dependency-reduced-pom.xml

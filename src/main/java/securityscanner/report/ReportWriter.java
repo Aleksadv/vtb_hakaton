@@ -54,7 +54,7 @@ public class ReportWriter {
         public int medium;
         public int low;
         public int info;
-        public Map<String, Integer> owaspCounts = new HashMap<>();
+        public Map<String, Integer> categoryCounts = new HashMap<>();
 
         public ScanSummary() {}
     }
@@ -65,7 +65,6 @@ public class ReportWriter {
     public static class Report {
         public Meta meta;
         public java.util.List<Finding> findings;
-        public ScanSummary summary;
 
         public Report() {}
     }
@@ -95,7 +94,6 @@ public class ReportWriter {
         r.meta.bankName = bankName;
         r.meta.summary = summary;
         r.findings = findings;
-        r.summary = summary;
 
         String name = generateReportName(extractBankCodeFromUrl(baseUrl), "json");
         File file = new File(reportsDir + "/" + name);
@@ -116,15 +114,16 @@ public class ReportWriter {
         summary.low = (int) findings.stream().filter(f -> f.severity == Finding.Severity.LOW).count();
         summary.info = (int) findings.stream().filter(f -> f.severity == Finding.Severity.INFO).count();
         
-        // Подсчет по OWASP категориям
-        Map<String, Integer> owaspCounts = new HashMap<>();
+        // Подсчет по всем категориям (OWASP + дополнительные проверки)
+        Map<String, Integer> categoryCounts = new HashMap<>();
         for (Finding finding : findings) {
-            if (finding.owasp != null) {
-                String owaspCategory = finding.owasp.split(":")[0]; // Берем только категорию (API1, API2 и т.д.)
-                owaspCounts.put(owaspCategory, owaspCounts.getOrDefault(owaspCategory, 0) + 1);
+            if (finding.owasp != null && !finding.owasp.isBlank()) {
+                // Берем основную категорию (до двоеточия если есть)
+                String category = finding.owasp.split(":")[0];
+                categoryCounts.put(category, categoryCounts.getOrDefault(category, 0) + 1);
             }
         }
-        summary.owaspCounts = owaspCounts;
+        summary.categoryCounts = categoryCounts;
         
         return summary;
     }
@@ -218,7 +217,7 @@ public class ReportWriter {
         doc.add(new Paragraph(" ", txt));
 
         // Detailed Findings Table
-        doc.add(new Paragraph("Detailed Security Findings:", h2));
+        doc.add(new Paragraph("Detailed Security Findings:\n", h2));
         PdfPTable table = new PdfPTable(5);
         table.setWidthPercentage(100);
         table.setWidths(new float[]{15, 8, 8, 20, 49});
@@ -282,12 +281,12 @@ public class ReportWriter {
 
         // Standard Recommendations
         doc.add(new Paragraph("Standard Security Recommendations:", h2));
-        doc.add(new Paragraph("• Implement missing security headers (HSTS, CSP, X-Content-Type-Options)", txt));
-        doc.add(new Paragraph("• Monitor and tune rate limiting thresholds", txt));
-        doc.add(new Paragraph("• Regular security testing and code review", txt));
-        doc.add(new Paragraph("• Ensure proper error handling without information disclosure", txt));
-        doc.add(new Paragraph("• Implement comprehensive logging and monitoring", txt));
-        doc.add(new Paragraph("• Keep dependencies and frameworks updated", txt));
+        doc.add(new Paragraph("• Реализуйте недостающие security заголовки (HSTS, CSP, X-Content-Type-Options)", txt));
+        doc.add(new Paragraph("• Настройте и мониторьте ограничения частоты запросов (rate limiting)", txt));
+        doc.add(new Paragraph("• Регулярное тестирование безопасности и код-ревью", txt));
+        doc.add(new Paragraph("• Обеспечьте правильную обработку ошибок без раскрытия информации", txt));
+        doc.add(new Paragraph("• Внедрите комплексное логирование и мониторинг", txt));
+        doc.add(new Paragraph("• Обновляйте зависимости и фреймворки", txt));
         
         doc.close();
         return file;

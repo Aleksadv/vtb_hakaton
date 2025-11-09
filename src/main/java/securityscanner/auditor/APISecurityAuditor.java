@@ -625,11 +625,13 @@ public class APISecurityAuditor {
     private void generateReports(String consentId) throws Exception {
         System.out.println("Generating reports...");
         
+        List<Finding> uniqueFindings = removeDuplicateFindings(findings);
+        
         String bankName = extractBankNameFromUrl(baseUrl);
         String reportTitle = bankName + " API Security Report";
 
-        var jsonFile = reportWriter.writeJson(reportTitle, openapiLocation, baseUrl, findings);
-        var pdfFile  = reportWriter.writePdf(reportTitle, openapiLocation, baseUrl, findings);
+        var jsonFile = reportWriter.writeJson(reportTitle, openapiLocation, baseUrl, uniqueFindings);
+        var pdfFile  = reportWriter.writePdf(reportTitle, openapiLocation, baseUrl, uniqueFindings);
         
         System.out.println("Total findings: " + findings.size());
         
@@ -696,5 +698,19 @@ public class APISecurityAuditor {
         if (url.contains("abank")) return "Awesome Bank";
         if (url.contains("sbank")) return "Smart Bank";
         return "Unknown Bank";
+    }
+
+    private List<Finding> removeDuplicateFindings(List<Finding> findings) {
+    Set<String> seen = new HashSet<>();
+    List<Finding> uniqueFindings = new ArrayList<>();
+    
+    for (Finding finding : findings) {
+        String key = finding.endpoint + "|" + finding.method + "|" + finding.message + "|" + finding.owasp;
+        if (!seen.contains(key)) {
+            seen.add(key);
+            uniqueFindings.add(finding);
+        }
+    }
+    return uniqueFindings;
     }
 }

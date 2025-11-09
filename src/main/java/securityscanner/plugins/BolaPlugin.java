@@ -14,7 +14,7 @@ import java.util.*;
  * Проверяет возможность доступа к чужим ресурсам через подмену client_id
  */
 public class BolaPlugin implements SecurityPlugin {
-    @Override public String id() { return "API1:BOLA"; }
+    @Override public String id() { return "API1: BOLA"; }
     @Override public String title() { return "Broken Object Level Authorization"; }
     @Override public String description() { return "Проверка возможности доступа к данным других пользователей через подмену client_id"; }
 
