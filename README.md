@@ -68,7 +68,7 @@ mvn clean compile package
 powershell -ExecutionPolicy Bypass -File "run_scan.ps1"
 ```
 
-Скрипт `run_scan.ps1` содержит все необходимые параметры для подключения к тестовому стенду Virtual Bank API.
+Скрипт `run_scan.ps1` содержит все необходимые параметры для подключения к тестовому стенду.
 
 ## Описание
 
@@ -97,4 +97,3 @@ powershell -ExecutionPolicy Bypass -File "run_scan.ps1"
 
 - Java 17 или выше
 - Maven 3.6+
-- Доступ к API Virtual Bank (https://vbank.open.bankingapi.ru)
