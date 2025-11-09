@@ -86,11 +86,13 @@ public class ReportWriter {
         
         Report r = new Report();
         r.meta = new Meta();
-        r.meta.title = title;
+
+        String bankName = extractBankNameFromUrl(baseUrl);
+        r.meta.title = bankName + " API Security Report";
         r.meta.openapi = openapi;
         r.meta.baseUrl = baseUrl;
         r.meta.generatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        r.meta.bankName = extractBankNameFromUrl(baseUrl);
+        r.meta.bankName = bankName;
         r.meta.summary = summary;
         r.findings = findings;
         r.summary = summary;
@@ -100,7 +102,7 @@ public class ReportWriter {
         om.writeValue(file, r);
         return file;
     }
-
+    
     /**
      * Создает сводку по findings
      */
@@ -292,17 +294,6 @@ public class ReportWriter {
     }
 
     /**
-     * Извлекает код банка из URL для имени файла
-     */
-    private String extractBankCodeFromUrl(String url) {
-        if (url == null) return "unknown";
-        if (url.contains("vbank")) return "VirtualBank";
-        if (url.contains("abank")) return "AwesomeBank";
-        if (url.contains("sbank")) return "SmartBank";
-        return "UnknownBank";
-    }
-
-    /**
      * Извлекает полное название банка из URL
      */
     private String extractBankNameFromUrl(String url) {
@@ -311,6 +302,17 @@ public class ReportWriter {
         if (url.contains("abank")) return "Awesome Bank";
         if (url.contains("sbank")) return "Smart Bank";
         return "Unknown Bank";
+    }
+
+    /**
+     * Извлекает код банка из URL для имени файла
+     */
+    private String extractBankCodeFromUrl(String url) {
+        if (url == null) return "unknown";
+        if (url.contains("vbank")) return "VirtualBank";
+        if (url.contains("abank")) return "AwesomeBank";
+        if (url.contains("sbank")) return "SmartBank";
+        return "UnknownBank";
     }
 
     /**

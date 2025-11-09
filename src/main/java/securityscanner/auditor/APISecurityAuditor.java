@@ -510,10 +510,13 @@ public class APISecurityAuditor {
 
         } finally {
             System.out.println("Generating reports...");
-            var jsonFile = reportWriter.writeJson("Virtual Bank API Report", openapiLocation, baseUrl, findings);
-            var pdfFile  = reportWriter.writePdf("Virtual Bank API Report", openapiLocation, baseUrl, findings);
+            // Определяем название банка из baseUrl
+            String bankName = extractBankNameFromUrl(baseUrl);
+            String reportTitle = bankName + " API Security Report";
+
+            var jsonFile = reportWriter.writeJson(reportTitle, openapiLocation, baseUrl, findings);
+            var pdfFile  = reportWriter.writePdf(reportTitle, openapiLocation, baseUrl, findings);
             
-            System.out.println("\n=== SCAN COMPLETE ===");
             System.out.println("Total findings: " + findings.size());
             
             long highCount = findings.stream().filter(f -> f.severity == Finding.Severity.HIGH).count();
@@ -569,5 +572,15 @@ public class APISecurityAuditor {
                         "Проверьте доступность эндпоинта и сетевое соединение"));
             }
         }
+    }
+    /**
+     * Извлекает название банка из URL
+     */
+    private String extractBankNameFromUrl(String url) {
+        if (url == null) return "Unknown Bank";
+        if (url.contains("vbank")) return "Virtual Bank";
+        if (url.contains("abank")) return "Awesome Bank";
+        if (url.contains("sbank")) return "Smart Bank";
+        return "Unknown Bank";
     }
 }
