@@ -8,8 +8,11 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Unsafe Consumption of APIs - OWASP API10
+ * Проверяет небезопасное взаимодействие с внешними API
+ */
 public class UnsafeConsumptionPlugin implements SecurityPlugin {
-    // УДАЛЕНО неиспользуемое поле: private final ObjectMapper om = new ObjectMapper();
     
     @Override public String id() { return "API10:UnsafeConsumption"; }
     @Override public String title() { return "Unsafe Consumption of APIs"; }
@@ -64,6 +67,9 @@ public class UnsafeConsumptionPlugin implements SecurityPlugin {
         return out;
     }
 
+    /**
+     * Проверяет эндпоинты на потенциальные SSRF уязвимости
+     */
     private void checkSSRFVulnerabilities(List<Finding> out, ExecutionContext ctx, RequestExecutor rex) {
         // Тест на потенциальные SSRF уязвимости через параметры URL
         String[] ssrfPayloads = {
@@ -77,7 +83,7 @@ public class UnsafeConsumptionPlugin implements SecurityPlugin {
         if (ctx.accessToken != null) headers.put("Authorization", "Bearer " + ctx.accessToken);
 
         for (String payload : ssrfPayloads) {
-            // ИСПРАВЛЕНО: использование современного метода encode
+            // Использование современного метода encode с указанием charset
             String testUrl = ctx.baseUrl + "/webhooks?url=" + java.net.URLEncoder.encode(payload, java.nio.charset.StandardCharsets.UTF_8);
             
             try (Response r = rex.get(testUrl, headers)) {
@@ -93,6 +99,9 @@ public class UnsafeConsumptionPlugin implements SecurityPlugin {
         }
     }
 
+    /**
+     * Проверяет наличие ссылок на внешние ресурсы в теле ответа
+     */
     private void checkForExternalUrls(List<Finding> out, String endpoint, String body, String baseUrl) {
         if (body == null || body.isBlank()) return;
 
@@ -114,12 +123,18 @@ public class UnsafeConsumptionPlugin implements SecurityPlugin {
         }
     }
 
+    /**
+     * Проверяет является ли URL внешним по отношению к базовому домену
+     */
     private boolean isExternalUrl(String url, String baseUrl) {
         String urlDomain = extractDomain(url);
         String baseDomain = extractDomain(baseUrl);
         return urlDomain != null && baseDomain != null && !urlDomain.equals(baseDomain);
     }
 
+    /**
+     * Извлекает домен из URL
+     */
     private String extractDomain(String url) {
         try {
             java.net.URI uri = new java.net.URI(url);

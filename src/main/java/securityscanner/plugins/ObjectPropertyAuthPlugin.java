@@ -10,12 +10,16 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Broken Object Property Level Authorization - OWASP API3
+ * Объединяет проверки Excessive Data Exposure и Mass Assignment
+ */
 public class ObjectPropertyAuthPlugin implements SecurityPlugin {
     private final ObjectMapper om = new ObjectMapper();
     
-    @Override public String id() { return "API3:2023-ObjectPropertyAuth"; }
+    @Override public String id() { return "API3: ObjectPropertyAuth"; }
     @Override public String title() { return "Broken Object Property Level Authorization"; }
-    @Override public String description() { return "Объединяет Excessive Data Exposure и Mass Assignment - проверка авторизации на уровне свойств объектов"; }
+    @Override public String description() { return "Проверка авторизации на уровне свойств объектов - избыточное раскрытие данных и массовое присваивание"; }
 
     @Override
     public List<Finding> run(ExecutionContext ctx) throws Exception {
@@ -31,6 +35,9 @@ public class ObjectPropertyAuthPlugin implements SecurityPlugin {
         return out;
     }
 
+    /**
+     * Проверяет избыточное раскрытие чувствительных данных в ответах API
+     */
     private List<Finding> testExcessiveDataExposure(ExecutionContext ctx, RequestExecutor rex) {
         List<Finding> out = new ArrayList<>();
         
@@ -48,12 +55,15 @@ public class ObjectPropertyAuthPlugin implements SecurityPlugin {
                 analyzeForSensitiveData(out, body, "/accounts");
             }
         } catch (Exception e) {
-            // Ignore
+            // Игнорируем ошибки подключения
         }
 
         return out;
     }
 
+    /**
+     * Проверяет возможность массового присваивания (mass assignment) read-only полей
+     */
     private List<Finding> testMassAssignment(ExecutionContext ctx, RequestExecutor rex) {
         List<Finding> out = new ArrayList<>();
 
@@ -88,12 +98,15 @@ public class ObjectPropertyAuthPlugin implements SecurityPlugin {
                         snippet(resp)));
             }
         } catch (Exception e) {
-            // Ignore
+            // Игнорируем ошибки подключения
         }
 
         return out;
     }
 
+    /**
+     * Анализирует тело ответа на наличие чувствительных данных
+     */
     private void analyzeForSensitiveData(List<Finding> out, String responseBody, String endpoint) {
         if (responseBody == null || responseBody.isBlank()) return;
 

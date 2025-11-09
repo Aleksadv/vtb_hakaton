@@ -8,6 +8,10 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки здоровья и доступности API
+ * Дополнительная проверка основных эндпоинтов на доступность и корректность работы
+ */
 public class APIHealthPlugin implements SecurityPlugin {
     @Override public String id() { return "API:Health"; }
     @Override public String title() { return "API Health Check"; }
@@ -46,6 +50,9 @@ public class APIHealthPlugin implements SecurityPlugin {
         return out;
     }
 
+    /**
+     * Анализирует ответ эндпоинта и определяет его статус доступности
+     */
     private void analyzeHealthResponse(List<Finding> out, String endpoint, Response response) {
         int code = response.code();
         

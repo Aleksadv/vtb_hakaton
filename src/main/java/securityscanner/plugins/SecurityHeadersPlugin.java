@@ -8,8 +8,12 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Security Headers - часть OWASP API8
+ * Специализируется на проверке HTTP security headers
+ */
 public class SecurityHeadersPlugin implements SecurityPlugin {
-    @Override public String id() { return "API8:SecurityHeaders"; }
+    @Override public String id() { return "API8: SecurityHeaders"; }
     @Override public String title() { return "Security Headers Check"; }
     @Override public String description() { return "Проверка наличия security заголовков"; }
 
@@ -21,7 +25,7 @@ public class SecurityHeadersPlugin implements SecurityPlugin {
         Map<String, String> headers = new HashMap<>();
         if (ctx.accessToken != null) headers.put("Authorization", "Bearer " + ctx.accessToken);
 
-        // Проверяем только безопасные эндпоинты
+        // Проверяем только безопасные эндпоинты чтобы избежать дублирования
         String[] safeEndpoints = {"/", "/health", "/products"};
         
         Set<String> missingHeaders = new HashSet<>();
@@ -41,6 +45,9 @@ public class SecurityHeadersPlugin implements SecurityPlugin {
         return out;
     }
 
+    /**
+     * Проверяет security headers в ответе и дедуплицирует одинаковые findings
+     */
     private void checkSecurityHeaders(List<Finding> out, String endpoint, Response response, 
                                     Set<String> missingHeaders, Set<String> checkedEndpoints) {
         // Проверяем каждый эндпоинт только один раз
@@ -73,6 +80,9 @@ public class SecurityHeadersPlugin implements SecurityPlugin {
         }
     }
 
+    /**
+     * Вспомогательный класс для хранения информации о проверяемом заголовке
+     */
     private static class HeaderCheck {
         Finding.Severity severity;
         String message;

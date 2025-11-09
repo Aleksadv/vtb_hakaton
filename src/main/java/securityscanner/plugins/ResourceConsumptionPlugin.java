@@ -8,8 +8,12 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Unrestricted Resource Consumption - OWASP API4
+ * Проверяет наличие и эффективность механизмов rate limiting
+ */
 public class ResourceConsumptionPlugin implements SecurityPlugin {
-    @Override public String id() { return "API4:2023-ResourceConsumption"; }
+    @Override public String id() { return "API4: ResourceConsumption"; }
     @Override public String title() { return "Unrestricted Resource Consumption"; }
     @Override public String description() { return "Проверка неограниченного потребления ресурсов (Rate Limiting)"; }
 
@@ -34,7 +38,7 @@ public class ResourceConsumptionPlugin implements SecurityPlugin {
         if (ctx.consentId != null && ctx.interbankClientId != null) headers.put("X-Consent-Id", ctx.consentId);
 
         RequestExecutor rex = new RequestExecutor(ctx.http, ctx.verbose);
-        int requests = 5; // Уменьшаем количество запросов
+        int requests = 5; // Уменьшенное количество запросов для теста
         int successfulCalls = 0;
         int rateLimitedCalls = 0;
 
@@ -48,10 +52,11 @@ public class ResourceConsumptionPlugin implements SecurityPlugin {
                     if (r.code() == 429) rateLimitedCalls++;
                 }
             } catch (Exception e) {
-                // Ignore errors
+                // Игнорируем ошибки
             }
         }
 
+        // Анализ результатов тестирования rate limiting
         if (rateLimitedCalls > 0) {
             out.add(Finding.of("/accounts", "GET", 429, id(),
                     Finding.Severity.INFO, 

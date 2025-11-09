@@ -8,8 +8,12 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Server Side Request Forgery (SSRF) - OWASP API7
+ * Проверяет уязвимости к атакам типа Server-Side Request Forgery
+ */
 public class SSRFPlugin implements SecurityPlugin {
-    @Override public String id() { return "API7:2023-SSRF"; }
+    @Override public String id() { return "API7: SSRF"; }
     @Override public String title() { return "Server Side Request Forgery"; }
     @Override public String description() { return "Проверка уязвимостей Server-Side Request Forgery"; }
 
@@ -27,7 +31,7 @@ public class SSRFPlugin implements SecurityPlugin {
             "/fetch"
         };
 
-        // SSRF payloads для тестирования
+        // SSRF payloads для тестирования внутренних ресурсов
         String[] ssrfPayloads = {
             "http://localhost:8080/admin",
             "http://127.0.0.1:22",
@@ -49,6 +53,9 @@ public class SSRFPlugin implements SecurityPlugin {
         return out;
     }
 
+    /**
+     * Тестирует конкретный эндпоинт на уязвимость к SSRF с заданным payload
+     */
     private List<Finding> testSSRFVulnerability(ExecutionContext ctx, RequestExecutor rex,
                                               String endpoint, String payload, Map<String, String> headers) {
         List<Finding> out = new ArrayList<>();
@@ -71,12 +78,15 @@ public class SSRFPlugin implements SecurityPlugin {
             }
 
         } catch (Exception e) {
-            // Ignore errors
+            // Игнорируем ошибки
         }
 
         return out;
     }
 
+    /**
+     * Анализирует ответ на SSRF тест и создает соответствующие findings
+     */
     private void analyzeSSRFResponse(List<Finding> out, String endpoint, String payload, 
                                    Response response, String vector) {
         int code = response.code();

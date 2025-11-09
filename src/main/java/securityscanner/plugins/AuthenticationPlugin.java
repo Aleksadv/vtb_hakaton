@@ -8,8 +8,12 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Broken Authentication - OWASP API2
+ * Проверяет валидность токенов аутентификации и доступ к эндпоинтам без аутентификации
+ */
 public class AuthenticationPlugin implements SecurityPlugin {
-    @Override public String id() { return "API2:2023-BrokenAuth"; }
+    @Override public String id() { return "API2: BrokenAuth"; }
     @Override public String title() { return "Broken Authentication"; }
     @Override public String description() { return "Проверка слабой аутентификации и авторизации"; }
 
@@ -29,6 +33,9 @@ public class AuthenticationPlugin implements SecurityPlugin {
         return out;
     }
 
+    /**
+     * Проверяет валидность токена аутентификации через запрос к защищенным эндпоинтам
+     */
     private void testTokenValidity(List<Finding> out, ExecutionContext ctx, RequestExecutor rex) {
         String[] testEndpoints = {"/accounts", "/cards", "/products"};
         
@@ -63,11 +70,14 @@ public class AuthenticationPlugin implements SecurityPlugin {
                     break;
                 }
             } catch (Exception e) {
-                // Ignore connection errors
+                // Игнорируем ошибки подключения
             }
         }
     }
 
+    /**
+     * Проверяет возможность доступа к защищенным эндпоинтам без аутентификации
+     */
     private void testAccessWithoutToken(List<Finding> out, ExecutionContext ctx, RequestExecutor rex) {
         String[] sensitiveEndpoints = {"/accounts", "/cards", "/payments"};
         
@@ -88,7 +98,7 @@ public class AuthenticationPlugin implements SecurityPlugin {
                             ""));
                 }
             } catch (Exception e) {
-                // Ignore connection errors
+                // Игнорируем ошибки подключения
             }
         }
     }

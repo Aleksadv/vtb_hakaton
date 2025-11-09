@@ -10,6 +10,10 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки инъекций - дополнительная проверка безопасности
+ * Проверяет SQL, NoSQL и другие типы инъекций
+ */
 public class InjectionPlugin implements SecurityPlugin {
     private final ObjectMapper om = new ObjectMapper();
     
@@ -28,15 +32,12 @@ public class InjectionPlugin implements SecurityPlugin {
         
         // NoSQL инъекции
         String[] nosqlPayloads = {"{\"$ne\": \"invalid\"}", "{\"$gt\": \"\"}", "{\"$where\": \"1==1\"}"};
-        
-        // Командные инъекции - УДАЛЕНО неиспользуемая переменная
-        // String[] commandPayloads = {"| whoami", "; ls -la", "`id`", "$(cat /etc/passwd)"};
 
         Map<String, String> headers = new HashMap<>();
         if (ctx.accessToken != null) headers.put("Authorization", "Bearer " + ctx.accessToken);
         if (ctx.requestingBank != null) headers.put("X-Requesting-Bank", ctx.requestingBank);
 
-        // Тестируем параметры запроса
+        // Тестируем SQL инъекции в параметрах запроса
         for (String payload : sqlPayloads) {
             String url = ctx.baseUrl + "/accounts?client_id=" + payload;
             try (Response r = rex.get(url, headers)) {
@@ -45,7 +46,7 @@ public class InjectionPlugin implements SecurityPlugin {
             }
         }
 
-        // Тестируем тело запроса для NoSQL инъекций
+        // Тестируем NoSQL инъекции в теле запроса
         for (String payload : nosqlPayloads) {
             String url = ctx.baseUrl + "/accounts";
             ObjectNode body = om.createObjectNode();
@@ -60,8 +61,12 @@ public class InjectionPlugin implements SecurityPlugin {
         return out;
     }
 
+    /**
+     * Анализирует ответ на наличие признаков успешной инъекции
+     */
     private void analyzeResponse(List<Finding> out, String endpoint, String method, 
                                int code, String payload, String body, String type) {
+        // Признаки возможной успешной инъекции
         if (code == 500 || body.toLowerCase().contains("sql") || 
             body.toLowerCase().contains("syntax") || body.toLowerCase().contains("error") ||
             body.toLowerCase().contains("exception") || body.toLowerCase().contains("mongodb")) {

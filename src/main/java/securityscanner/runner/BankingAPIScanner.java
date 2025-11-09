@@ -4,8 +4,17 @@ import securityscanner.auditor.APISecurityAuditor;
 
 import java.util.*;
 
+/**
+ * Главный класс запуска сканера безопасности API
+ * Обрабатывает аргументы командной строки и инициализирует аудитор
+ */
 public class BankingAPIScanner {
 
+    /**
+     * Парсит аргументы командной строки в Map
+     * @param args аргументы командной строки
+     * @return Map с параметрами и их значениями
+     */
     private static Map<String, String> parseArgs(String[] args) {
         Map<String, String> map = new LinkedHashMap<>();
         List<String> multi = new ArrayList<>();
@@ -22,16 +31,21 @@ public class BankingAPIScanner {
         return map;
     }
 
+    /**
+     * Точка входа в приложение
+     * @param args аргументы командной строки
+     */
     public static void main(String[] args) throws Exception {
         Map<String, String> p = parseArgs(args);
 
+        // Парсинг параметров командной строки
         String openapi = p.getOrDefault("openapi", "");
         String baseUrl = p.getOrDefault("base-url", "");
         String authArg = p.getOrDefault("auth", ""); // формат: bearer:XXXXX
         String clientId = p.getOrDefault("client-id", System.getenv("CLIENT_ID"));
         String clientSecret = p.getOrDefault("client-secret", System.getenv("CLIENT_SECRET"));
         String requestingBank = p.getOrDefault("requesting-bank", clientId); // по умолчанию = teamID
-        String interbankClient = p.getOrDefault("client", "");               // client_id клиента для межбанка (team200-1)
+        String interbankClient = p.getOrDefault("client", "");               // client_id клиента для межбанка
         boolean createConsent = Boolean.parseBoolean(p.getOrDefault("create-consent", "false"));
         boolean verbose = Boolean.parseBoolean(p.getOrDefault("verbose", "false"));
 
@@ -41,6 +55,7 @@ public class BankingAPIScanner {
             if (e.getKey().equals("add-header")) extraHeaders.add(e.getValue());
         }
 
+        // Вывод информации о конфигурации
         System.out.println("Starting Banking API Security Scanner...");
         System.out.println("openapi=" + openapi);
         System.out.println("base-url=" + (baseUrl.isBlank() ? "(auto from OpenAPI)" : baseUrl));
@@ -51,6 +66,7 @@ public class BankingAPIScanner {
         if (!extraHeaders.isEmpty()) System.out.println("extra headers: " + extraHeaders);
         if (verbose) System.out.println("verbose=ON");
 
+        // Инициализация и запуск аудитора безопасности
         APISecurityAuditor auditor = new APISecurityAuditor(verbose);
         auditor.setOpenapiLocation(openapi);
         auditor.setBaseUrl(baseUrl);

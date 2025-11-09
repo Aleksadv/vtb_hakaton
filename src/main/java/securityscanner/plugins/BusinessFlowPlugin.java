@@ -8,8 +8,12 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Unrestricted Access to Sensitive Business Flows - OWASP API6
+ * Проверяет возможность автоматизации чувствительных бизнес-процессов
+ */
 public class BusinessFlowPlugin implements SecurityPlugin {
-    @Override public String id() { return "API6:2023-BusinessFlow"; }
+    @Override public String id() { return "API6: BusinessFlow"; }
     @Override public String title() { return "Unrestricted Access to Sensitive Business Flows"; }
     @Override public String description() { return "Проверка неограниченного доступа к чувствительным бизнес-процессам"; }
 
@@ -38,6 +42,9 @@ public class BusinessFlowPlugin implements SecurityPlugin {
         return out;
     }
 
+    /**
+     * Тестирует возможность автоматизации бизнес-процесса через быстрые повторные вызовы
+     */
     private List<Finding> testBusinessFlowRate(ExecutionContext ctx, RequestExecutor rex, 
                                              String endpoint, Map<String, String> headers) {
         List<Finding> out = new ArrayList<>();
@@ -68,11 +75,11 @@ public class BusinessFlowPlugin implements SecurityPlugin {
 
                 r.close();
             } catch (Exception e) {
-                // Ignore errors
+                // Игнорируем ошибки
             }
         }
 
-        // Если все вызовы успешны - возможна уязвимость
+        // Если все вызовы успешны - возможна уязвимость к автоматизации
         if (successfulCalls == totalCalls) {
             out.add(Finding.of(endpoint, "MULTIPLE", 200, id(),
                     Finding.Severity.MEDIUM,

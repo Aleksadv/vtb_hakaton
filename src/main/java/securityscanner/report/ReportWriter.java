@@ -14,10 +14,17 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+/**
+ * Генератор отчетов в форматах JSON и PDF
+ * Создает структурированные отчеты с результатами сканирования безопасности
+ */
 public class ReportWriter {
 
     private final ObjectMapper om = new ObjectMapper();
 
+    /**
+     * Мета-информация для отчета
+     */
     public static class Meta {
         public String title;
         public String openapi;
@@ -25,11 +32,22 @@ public class ReportWriter {
         public String generatedAt;
     }
 
+    /**
+     * Структура полного отчета
+     */
     public static class Report {
         public Meta meta;
         public java.util.List<Finding> findings;
     }
 
+    /**
+     * Генерирует отчет в формате JSON
+     * @param title заголовок отчета
+     * @param openapi путь к OpenAPI спецификации
+     * @param baseUrl базовый URL API
+     * @param findings список найденных проблем
+     * @return файл с JSON отчетом
+     */
     public File writeJson(String title, String openapi, String baseUrl, java.util.List<Finding> findings) throws Exception {
         ensureDir();
         Report r = new Report();
@@ -46,36 +64,46 @@ public class ReportWriter {
         return file;
     }
 
+    /**
+     * Генерирует отчет в формате PDF
+     * @param title заголовок отчета
+     * @param openapi путь к OpenAPI спецификации
+     * @param baseUrl базовый URL API
+     * @param findings список найденных проблем
+     * @return файл с PDF отчетом
+     */
     public File writePdf(String title, String openapi, String baseUrl, java.util.List<Finding> findings) throws Exception {
         ensureDir();
         String name = "VirtualBankAPI-" + timestamp() + ".pdf";
         File file = new File("target/reports/" + name);
 
-        Document doc = new Document(PageSize.A4.rotate()); // Ландшафтная ориентация для лучшего отображения
+        // Создание PDF документа с ландшафтной ориентацией
+        Document doc = new Document(PageSize.A4.rotate());
         PdfWriter.getInstance(doc, new FileOutputStream(file));
         doc.open();
         
+        // Настройка шрифтов
         Font h1 = new Font(Font.HELVETICA, 16, Font.BOLD);
         Font h2 = new Font(Font.HELVETICA, 12, Font.BOLD);
         Font h3 = new Font(Font.HELVETICA, 10, Font.BOLD);
         Font txt = new Font(Font.HELVETICA, 8, Font.NORMAL);
         Font bold = new Font(Font.HELVETICA, 8, Font.BOLD);
 
-        // Заголовок
+        // Заголовок отчета
         doc.add(new Paragraph(title, h1));
         doc.add(new Paragraph("OpenAPI: " + openapi, txt));
         doc.add(new Paragraph("Base URL: " + baseUrl, txt));
         doc.add(new Paragraph("Generated: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), txt));
         doc.add(new Paragraph(" ", txt));
 
-        // Статистика
+        // Статистика findings
         long highCount = findings.stream().filter(finding -> finding.severity == Finding.Severity.HIGH).count();
         long mediumCount = findings.stream().filter(finding -> finding.severity == Finding.Severity.MEDIUM).count();
         long lowCount = findings.stream().filter(finding -> finding.severity == Finding.Severity.LOW).count();
         long infoCount = findings.stream().filter(finding -> finding.severity == Finding.Severity.INFO).count();
         long total = findings.size();
 
-        // Summary
+        // Summary секция
         doc.add(new Paragraph("Scan Summary:", h2));
         doc.add(new Paragraph("Total Findings: " + total, bold));
         doc.add(new Paragraph("High: " + highCount + ", Medium: " + mediumCount + ", Low: " + lowCount + ", Info: " + infoCount, txt));
@@ -121,7 +149,7 @@ public class ReportWriter {
         }
         doc.add(new Paragraph(" ", txt));
 
-        // Detailed Findings Table - Упрощенная версия без Evidence
+        // Detailed Findings Table
         doc.add(new Paragraph("Detailed Security Findings:", h2));
         PdfPTable table = new PdfPTable(5);
         table.setWidthPercentage(100);
@@ -197,14 +225,19 @@ public class ReportWriter {
         return file;
     }
 
-private PdfPCell createCell(String content, Font font) {
-    String cleanContent = cleanText(content);
-    PdfPCell cell = new PdfPCell(new Phrase(cleanContent, font));
-    cell.setPadding(4);
-    cell.setBorderWidth(0.5f);
-    return cell;
-}
+    /**
+     * Создает ячейку таблицы PDF с заданным содержимым и шрифтом
+     */
+    private PdfPCell createCell(String content, Font font) {
+        PdfPCell cell = new PdfPCell(new Phrase(content, font));
+        cell.setPadding(4);
+        cell.setBorderWidth(0.5f);
+        return cell;
+    }
 
+    /**
+     * Определяет категорию рекомендации на основе типа finding
+     */
     private String getRecommendationCategory(Finding finding) {
         if (finding.owasp != null) {
             if (finding.owasp.contains("BOLA")) return "Access Control";
@@ -226,30 +259,32 @@ private PdfPCell createCell(String content, Font font) {
         return "General Security";
     }
 
+    /**
+     * Генерирует timestamp для имени файла
+     */
     private static String timestamp() {
         return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
     }
     
+    /**
+     * Создает директорию для отчетов если она не существует
+     */
     private static void ensureDir() throws Exception {
         Files.createDirectories(new File("target/reports").toPath());
     }
     
+    /**
+     * Обрезает строку до максимальной длины
+     */
     private static String trim(String s, int max) {
         if (s == null) return "";
         return s.length() > max ? s.substring(0, max) + "..." : s;
     }
     
+    /**
+     * Защищает от null значений
+     */
     private static String safe(String s) { 
         return s == null ? "" : s; 
     }
-    private String cleanText(String text) {
-    if (text == null) return "";
-    
-    // Убираем некорректные символы и фразы
-    return text.replace("synchrotriking", "аутентификации")
-              .replace("was the main tool in your app", "невалиден или просрочен")
-              .replace("ProxyServer security assurance", "Отсутствует security заголовок")
-              .replaceAll("[^\\x20-\\x7Eа-яА-ЯёЁ]", "") // Только ASCII и кириллица
-              .trim();
-}
 }

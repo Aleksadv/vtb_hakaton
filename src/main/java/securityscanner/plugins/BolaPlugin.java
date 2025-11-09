@@ -9,14 +9,20 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Broken Object Level Authorization (BOLA) - OWASP API1
+ * Проверяет возможность доступа к чужим ресурсам через подмену client_id
+ */
 public class BolaPlugin implements SecurityPlugin {
     @Override public String id() { return "API1:BOLA"; }
     @Override public String title() { return "Broken Object Level Authorization"; }
-    @Override public String description() { return "Подмена client_id/чужие ресурсы → ожидать 403/404/401, иначе уязвимость."; }
+    @Override public String description() { return "Проверка возможности доступа к данным других пользователей через подмену client_id"; }
 
     @Override
     public List<Finding> run(ExecutionContext ctx) throws Exception {
         List<Finding> out = new ArrayList<>();
+        
+        // BOLA тест требует наличия client_id для межбанковских запросов
         if (ctx.interbankClientId == null || ctx.interbankClientId.isBlank()) {
             out.add(Finding.of("/accounts", "GET", 0, id(),
                     Finding.Severity.INFO, 
@@ -26,25 +32,26 @@ public class BolaPlugin implements SecurityPlugin {
             return out;
         }
 
-        // Увеличиваем задержку перед проверкой BOLA
+        // Задержка перед проверкой BOLA чтобы избежать rate limiting
         try { 
             Thread.sleep(2000); 
         } catch (InterruptedException e) { 
             Thread.currentThread().interrupt(); 
         }
 
+        // Пытаемся получить доступ к данным другого пользователя
         String other = "team999-1";
         HttpUrl.Builder ub = Objects.requireNonNull(HttpUrl.parse(ctx.baseUrl + "/accounts")).newBuilder();
         ub.addQueryParameter("client_id", other);
         String url = ub.build().toString();
 
-        Map<String,String> h = new LinkedHashMap<>();
-        if (ctx.accessToken != null) h.put("Authorization", "Bearer " + ctx.accessToken);
-        if (ctx.requestingBank != null) h.put("X-Requesting-Bank", ctx.requestingBank);
-        if (ctx.consentId != null) h.put("X-Consent-Id", ctx.consentId);
+        Map<String,String> headers = new LinkedHashMap<>();
+        if (ctx.accessToken != null) headers.put("Authorization", "Bearer " + ctx.accessToken);
+        if (ctx.requestingBank != null) headers.put("X-Requesting-Bank", ctx.requestingBank);
+        if (ctx.consentId != null) headers.put("X-Consent-Id", ctx.consentId);
 
         RequestExecutor rex = new RequestExecutor(ctx.http, ctx.verbose);
-        try (Response r = rex.get(url, h)) {
+        try (Response r = rex.get(url, headers)) {
             int code = r.code();
             String body = r.body() != null ? r.body().string() : "";
             

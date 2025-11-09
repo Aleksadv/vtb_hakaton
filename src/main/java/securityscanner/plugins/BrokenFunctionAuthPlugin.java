@@ -8,8 +8,12 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Broken Function Level Authorization - OWASP API5
+ * Проверяет возможность несанкционированного доступа к административным функциям
+ */
 public class BrokenFunctionAuthPlugin implements SecurityPlugin {
-    @Override public String id() { return "API5:2023-BrokenFunctionAuth"; }
+    @Override public String id() { return "API5: BrokenFunctionAuth"; }
     @Override public String title() { return "Broken Function Level Authorization"; }
     @Override public String description() { return "Проверка несанкционированного доступа к административным функциям"; }
 
@@ -51,7 +55,7 @@ public class BrokenFunctionAuthPlugin implements SecurityPlugin {
                             snippet(body)));
                 }
             } catch (Exception e) {
-                // Игнорируем ошибки подключения
+                // Игнорируем ошибки подключения - эндпоинт может не существовать
             }
         }
 

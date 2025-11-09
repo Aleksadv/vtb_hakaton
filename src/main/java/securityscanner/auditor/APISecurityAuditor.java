@@ -6,13 +6,17 @@ import okhttp3.*;
 import securityscanner.core.*;
 import securityscanner.core.model.Finding;
 import securityscanner.generator.ScenarioGenerator;
-import securityscanner.parser.OpenAPIParserSimple;
+import securityscanner.parser.OpenAPIParser;
 import securityscanner.report.ReportWriter;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 
+/**
+ * Главный класс аудитора безопасности API.
+ * Координирует весь процесс сканирования: аутентификацию, выполнение сценариев, запуск плагинов.
+ */
 public class APISecurityAuditor {
 
     private final boolean verbose;
@@ -26,22 +30,24 @@ public class APISecurityAuditor {
     private final ResponseValidator validator = new ResponseValidator();
     private final ReportWriter reportWriter = new ReportWriter();
 
+    // Конфигурационные параметры сканирования
     private String openapiLocation;
     private String baseUrl;
-    private String authArg; // "bearer:XXXX"
+    private String authArg; // Формат: "bearer:XXXXX"
     private String clientId;
     private String clientSecret;
     private String requestingBank;
-    private String interbankClientId;
+    private String interbankClientId; // client_id для межбанковских запросов
     private boolean createConsent;
     private List<String> extraHeaders = List.of();
 
-    // Для адаптивных задержек
+    // Механизм адаптивных задержек для избежания rate limiting
     private int lastStatusCode = 200;
     private int consecutive429s = 0;
 
     public APISecurityAuditor(boolean verbose) { this.verbose = verbose; }
 
+    // Методы установки конфигурации
     public void setOpenapiLocation(String openapiLocation) { this.openapiLocation = openapiLocation; }
     public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
     public void setAuthArg(String authArg) { this.authArg = authArg; }
@@ -54,18 +60,94 @@ public class APISecurityAuditor {
 
     private void log(String s) { if (verbose) System.out.println(s); }
 
+    /**
+     * Определяет базовый URL: из параметров или из OpenAPI спецификации
+     */
     private String ensureBaseUrlFromOpenAPI(String current) throws Exception {
         if (current != null && !current.isBlank()) return current.replaceAll("/+$", "");
         if (openapiLocation == null || openapiLocation.isBlank()) return "";
-        OpenAPIParserSimple parser = new OpenAPIParserSimple();
+        OpenAPIParser parser = new OpenAPIParser();
         String fromSpec = parser.extractFirstServerUrl(openapiLocation);
         if (fromSpec == null || fromSpec.isBlank()) return "";
         return fromSpec.replaceAll("/+$", "");
     }
 
+    /**
+     * Получает access token через несколько методов:
+     * 1. Из аргумента --auth
+     * 2. Из переменной окружения BANK_TOKEN
+     * 3. Через client credentials flow
+     */
+    private String resolveAccessToken() throws Exception {
+        String token = null;
+        
+        if (authArg != null && !authArg.isBlank()) {
+            if (authArg.toLowerCase(Locale.ROOT).startsWith("bearer:")) {
+                token = authArg.substring("bearer:".length()).trim();
+                token = cleanToken(token);
+                if (!token.isBlank()) {
+                    System.out.println("Access token (from --auth) detected");
+                    return token;
+                }
+            }
+        }
+
+        String env = System.getenv("BANK_TOKEN");
+        if (env != null && !env.isBlank()) {
+            token = cleanToken(env);
+            System.out.println("Access token (from env BANK_TOKEN) detected");
+            return token;
+        }
+
+        if (clientId != null && clientSecret != null && 
+            !clientId.isBlank() && !clientSecret.isBlank()) {
+            System.out.println("Attempting to fetch token using client credentials...");
+            return fetchTokenWithClientCredentials();
+        }
+
+        throw new IllegalStateException(
+            "No valid token found. Provide:\n" +
+            "1. --auth 'bearer:YOUR_TOKEN' OR\n" +
+            "2. BANK_TOKEN environment variable OR\n" + 
+            "3. --client-id and --client-secret to fetch token automatically"
+        );
+    }
+
+    /**
+     * Получает токен через OAuth2 client credentials flow
+     */
+    private String fetchTokenWithClientCredentials() throws Exception {
+        String url = baseUrl + "/auth/bank-token?client_id=" + encode(clientId) + 
+                     "&client_secret=" + encode(clientSecret);
+        Request req = new Request.Builder().url(url).post(RequestBody.create(new byte[0])).build();
+        log("POST " + url);
+        
+        try (Response r = http.newCall(req).execute()) {
+            String body = r.body() != null ? r.body().string() : "";
+            System.out.println("Auth response status: " + r.code());
+            
+            if (!r.isSuccessful()) {
+                findings.add(Finding.of("/auth/bank-token", "POST", r.code(), "AuthError",
+                        Finding.Severity.HIGH, 
+                        "Authentication failed: " + r.code(), 
+                        body,
+                        "Проверьте client_id и client_secret. Убедитесь, что они корректны и не истекли."));
+                throw new IllegalStateException("Auth failed: " + r.code());
+            }
+            
+            JsonNode node = om.readTree(body);
+            String token = node.path("access_token").asText();
+            if (token == null || token.isBlank()) {
+                throw new IllegalStateException("Auth response has no access_token");
+            }
+            
+            System.out.println("Access Token received successfully");
+            return token;
+        }
+    }
+
     private String cleanToken(String token) {
         if (token == null) return null;
-        // Убираем символы новой строки, возврата каретки, лишние пробелы
         return token.replaceAll("[\\r\\n\\t]", "").trim();
     }
 
@@ -84,6 +166,9 @@ public class APISecurityAuditor {
         }
     }
 
+    /**
+     * Создает consent для доступа к защищенным данным, если требуется
+     */
     private String createConsentIfNeeded(String token) throws Exception {
         if (!createConsent) {
             System.out.println("Consent creation skipped (--create-consent=false)");
@@ -126,7 +211,7 @@ public class APISecurityAuditor {
                 String consentId = extractConsentId(node);
                 
                 if (consentId != null && !consentId.isBlank()) {
-                    System.out.println("✅ Consent created successfully: " + consentId);
+                    System.out.println("Consent created successfully: " + consentId);
                     findings.add(Finding.of("/account-consents/request", "POST", r.code(),
                             "ConsentManagement", Finding.Severity.INFO, 
                             "Consent created for security testing: " + consentId, 
@@ -134,7 +219,7 @@ public class APISecurityAuditor {
                             "Убедитесь, что consent имеет ограниченное время жизни и необходимые разрешения"));
                     return consentId;
                 } else {
-                    System.out.println("⚠️ Consent created but ID not found in response");
+                    System.out.println("Consent created but ID not found in response");
                     findings.add(Finding.of("/account-consents/request", "POST", r.code(),
                             "ConsentManagement", Finding.Severity.MEDIUM,
                             "Consent created but no consent_id in response", resp,
@@ -142,21 +227,21 @@ public class APISecurityAuditor {
                     return null;
                 }
             } else if (r.code() == 403) {
-                System.out.println("❌ Consent creation failed: Permission denied (403)");
+                System.out.println("Consent creation failed: Permission denied (403)");
                 findings.add(Finding.of("/account-consents/request", "POST", r.code(),
                         "ConsentManagement", Finding.Severity.HIGH,
                         "Consent creation failed - insufficient permissions", resp,
                         "Проверьте права доступа и корректность токена аутентификации"));
                 return null;
             } else if (r.code() == 401) {
-                System.out.println("❌ Consent creation failed: Unauthorized (401)");
+                System.out.println("Consent creation failed: Unauthorized (401)");
                 findings.add(Finding.of("/account-consents/request", "POST", r.code(),
                         "ConsentManagement", Finding.Severity.HIGH,
                         "Consent creation failed - authentication required", resp,
                         "Убедитесь в валидности access token"));
                 return null;
             } else {
-                System.out.println("⚠️ Consent creation failed with status: " + r.code());
+                System.out.println("Consent creation failed with status: " + r.code());
                 findings.add(Finding.of("/account-consents/request", "POST", r.code(),
                         "ConsentManagement", Finding.Severity.MEDIUM,
                         "Consent creation failed with status: " + r.code(), resp,
@@ -167,7 +252,6 @@ public class APISecurityAuditor {
     }
 
     private String extractConsentId(JsonNode node) {
-        // Пробуем разные возможные пути к consent_id
         if (node.has("consent_id")) return node.get("consent_id").asText();
         if (node.has("data") && node.get("data").has("consentId")) 
             return node.get("data").get("consentId").asText();
@@ -195,10 +279,10 @@ public class APISecurityAuditor {
                 log("Consent status: " + status);
                 
                 if ("approved".equalsIgnoreCase(status) || "active".equalsIgnoreCase(status)) {
-                    System.out.println("✅ Consent is active: " + consentId);
+                    System.out.println("Consent is active: " + consentId);
                     return true;
                 } else {
-                    System.out.println("⚠️ Consent status: " + status + " for " + consentId);
+                    System.out.println("Consent status: " + status + " for " + consentId);
                     return false;
                 }
             } else {
@@ -208,29 +292,32 @@ public class APISecurityAuditor {
         }
     }
 
-private boolean validateToken(String token) throws Exception {
-    if (token == null || token.isBlank()) return false;
-    
-    String testUrl = baseUrl + "/accounts";
-    Request.Builder rb = new Request.Builder().url(testUrl).get();
-    rb.addHeader("Authorization", "Bearer " + token);
-    applyExtraHeaders(rb);
-    
-    try (Response r = http.newCall(rb.build()).execute()) {
-        log("Token validation request: " + r.code());
-        boolean isValid = r.code() != 401 && r.code() != 403;
+    /**
+     * Проверяет валидность токена аутентификации
+     */
+    private boolean validateToken(String token) throws Exception {
+        if (token == null || token.isBlank()) return false;
         
-        if (!isValid) {
-            findings.add(Finding.of("/auth", "N/A", 0, "AuthCheck",
-                    Finding.Severity.HIGH, 
-                    "Токен аутентификации не прошел проверку", 
-                    "Код ответа: " + r.code(),
-                    "Проверьте валидность токена, срок действия и права доступа"));
+        String testUrl = baseUrl + "/accounts";
+        Request.Builder rb = new Request.Builder().url(testUrl).get();
+        rb.addHeader("Authorization", "Bearer " + token);
+        applyExtraHeaders(rb);
+        
+        try (Response r = http.newCall(rb.build()).execute()) {
+            log("Token validation request: " + r.code());
+            boolean isValid = r.code() != 401 && r.code() != 403;
+            
+            if (!isValid) {
+                findings.add(Finding.of("/auth", "N/A", 0, "AuthCheck",
+                        Finding.Severity.HIGH, 
+                        "Токен аутентификации не прошел проверку", 
+                        "Код ответа: " + r.code(),
+                        "Проверьте валидность токена, срок действия и права доступа"));
+            }
+            
+            return isValid;
         }
-        
-        return isValid;
     }
-}
 
     private void validateAndRecord(String endpoint, String method, Response r, JsonNode expectedSchema) throws Exception {
         String body = r.body()!=null? r.body().string() : "";
@@ -240,58 +327,57 @@ private boolean validateToken(String token) throws Exception {
         findings.addAll(validator.validateContract(endpoint, method, re, expectedSchema));
     }
 
-private void adaptiveDelay() {
-    try {
-        long baseDelay = 2000; // Увеличиваем базовую задержку до 2 секунд
-        long delay;
-        
-        if (lastStatusCode == 429) {
-            consecutive429s++;
-            delay = baseDelay + (consecutive429s * 3000); // Более агрессивное увеличение
-            System.out.println("⚠️ Rate limit detected, increasing delay to " + delay + "ms");
+    /**
+     * Адаптивная система задержек для избежания rate limiting
+     * Увеличивает задержки при получении 429 ошибок
+     */
+    private void adaptiveDelay() {
+        try {
+            long baseDelay = 2000;
+            long delay;
             
-            // После 3 подряд 429 ошибок делаем длинную паузу
-            if (consecutive429s >= 3) {
-                System.out.println("🚫 Multiple rate limits, pausing for 30 seconds");
-                Thread.sleep(30000);
+            if (lastStatusCode == 429) {
+                consecutive429s++;
+                delay = baseDelay + (consecutive429s * 3000);
+                System.out.println("Rate limit detected, increasing delay to " + delay + "ms");
+                
+                if (consecutive429s >= 3) {
+                    System.out.println("Multiple rate limits, pausing for 30 seconds");
+                    Thread.sleep(30000);
+                    consecutive429s = 0;
+                    return;
+                }
+            } else if (lastStatusCode >= 500) {
+                delay = baseDelay + 2000;
+                System.out.println("Server error, increasing delay to " + delay + "ms");
+            } else {
                 consecutive429s = 0;
-                return;
+                delay = baseDelay + new Random().nextInt(2000);
             }
-        } else if (lastStatusCode >= 500) {
-            // Увеличиваем задержку при серверных ошибках
-            delay = baseDelay + 2000;
-            System.out.println("⚠️ Server error, increasing delay to " + delay + "ms");
-        } else {
-            consecutive429s = 0;
-            // Случайная задержка между 2-4 секундами
-            delay = baseDelay + new Random().nextInt(2000);
+            
+            delay = Math.min(delay, 15000);
+            Thread.sleep(delay);
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.out.println("Sleep interrupted");
         }
-        
-        // Максимальная задержка 15 секунд
-        delay = Math.min(delay, 15000);
-        Thread.sleep(delay);
-        
-    } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        System.out.println("Sleep interrupted");
     }
-}
 
-    private void runScenario(ScenarioGenerator.Scenario s, String token, String consentId, JsonNode openapiRoot, OpenAPIParserSimple parser) throws Exception {
-        // Добавляем адаптивную задержку
+    /**
+     * Выполняет один тестовый сценарий
+     */
+    private void runScenario(ScenarioGenerator.Scenario s, String token, String consentId, JsonNode openapiRoot, OpenAPIParser parser) throws Exception {
         adaptiveDelay();
         
-        // URL
         HttpUrl.Builder ub = Objects.requireNonNull(HttpUrl.parse(baseUrl + s.path)).newBuilder();
         s.query.forEach(ub::addQueryParameter);
         String url = ub.build().toString();
 
-        // Headers
         Request.Builder rb = new Request.Builder().url(url);
         if (token != null && !token.isBlank()) rb.addHeader("Authorization", "Bearer " + token);
         s.headers.forEach(rb::addHeader);
         
-        // Добавляем межбанковские заголовки только если есть consent или это не требуется
         if (interbankClientId != null && s.query.containsKey("client_id")) {
             if (requestingBank != null && rb.build().header("X-Requesting-Bank") == null)
                 rb.addHeader("X-Requesting-Bank", requestingBank);
@@ -300,7 +386,6 @@ private void adaptiveDelay() {
         }
         applyExtraHeaders(rb);
 
-        // Method/body
         if ("POST".equals(s.method) || "PUT".equals(s.method)) {
             String json = s.body != null ? om.writeValueAsString(s.body) : "{}";
             rb.method(s.method, RequestBody.create(json, MediaType.parse("application/json")));
@@ -312,10 +397,9 @@ private void adaptiveDelay() {
 
         try (Response r = http.newCall(rb.build()).execute()) {
             int code = r.code();
-            this.lastStatusCode = code; // Сохраняем для адаптивных задержек
+            this.lastStatusCode = code;
             System.out.println(s.path + " ["+s.method+"/"+s.label+"] -> " + code);
             
-            // Записываем finding для анализа доступа
             if (code == 403 && consentId == null && s.path.contains("/accounts")) {
                 findings.add(Finding.of(s.path, s.method, code, "AccessControl",
                         Finding.Severity.INFO, 
@@ -329,7 +413,6 @@ private void adaptiveDelay() {
             try {
                 schema = parser.resolveResponseSchemaFromRoot(openapiRoot, s.path, r.code(), ct);
             } catch (Exception ignore) {
-                // не валимся из-за схемы
             }
             validateAndRecord(s.path, s.method, r, schema);
         } catch (Exception e) {
@@ -342,6 +425,9 @@ private void adaptiveDelay() {
         }
     }
 
+    /**
+     * Главный метод запуска сканирования
+     */
     public void run() throws Exception {
         this.baseUrl = ensureBaseUrlFromOpenAPI(this.baseUrl);
         if (baseUrl == null || baseUrl.isBlank())
@@ -350,28 +436,26 @@ private void adaptiveDelay() {
 
         String token = resolveAccessToken();
         
-        // Проверяем валидность токена
         if (!validateToken(token)) {
             System.out.println("WARNING: Token appears to be invalid. Some tests may fail.");
         }
 
-        OpenAPIParserSimple parser = new OpenAPIParserSimple();
+        OpenAPIParser parser = new OpenAPIParser();
         JsonNode openapiRoot = parser.getOpenApiRoot(openapiLocation);
 
         String consentId = null;
         if (createConsent) {
-            System.out.println("🔄 Creating consent for client: " + interbankClientId);
+            System.out.println("Creating consent for client: " + interbankClientId);
             consentId = createConsentIfNeeded(token);
             
             if (consentId != null) {
-                // Проверяем статус согласия
                 if (checkConsentStatus(token, consentId)) {
-                    System.out.println("✅ Using active consent: " + consentId);
+                    System.out.println("Using active consent: " + consentId);
                 } else {
-                    System.out.println("⚠️ Consent may not be active, some tests may fail");
+                    System.out.println("Consent may not be active, some tests may fail");
                 }
             } else {
-                System.out.println("❌ Running without consent - sensitive endpoints will return 403");
+                System.out.println("Running without consent - sensitive endpoints will return 403");
                 findings.add(Finding.of("/account-consents", "N/A", 0, "ConsentManagement",
                         Finding.Severity.MEDIUM, 
                         "Running without valid consent", 
@@ -379,11 +463,10 @@ private void adaptiveDelay() {
                         "Создайте consent для полного тестирования защищенных эндпоинтов"));
             }
         } else {
-            System.out.println("⏭️ Consent creation skipped by user request");
+            System.out.println("Consent creation skipped by user request");
         }
 
         try {
-            // сценарии
             ScenarioGenerator gen = new ScenarioGenerator();
             List<ScenarioGenerator.Scenario> scenarios = gen.generate(openapiRoot, requestingBank, interbankClientId);
             System.out.println("Generated " + scenarios.size() + " test scenarios");
@@ -401,7 +484,6 @@ private void adaptiveDelay() {
                 }
             }
 
-            // плагины OWASP API Top 10 2023
             PluginRegistry reg = new PluginRegistry().registerAll();
             ExecutionContext ctx = new ExecutionContext(
                     baseUrl, token, requestingBank, interbankClientId, consentId, verbose,
@@ -413,22 +495,20 @@ private void adaptiveDelay() {
                 try {
                     List<Finding> pf = p.run(ctx);
                     if (pf != null) findings.addAll(pf);
-                    System.out.println("✓ " + p.title() + " completed");
+                    System.out.println(p.title() + " completed");
                 } catch (Exception ex) {
                     findings.add(Finding.of("(plugin)", "N/A", 0, p.id(),
                             Finding.Severity.LOW, 
                             "Plugin error: " + ex.getMessage(), 
                             "",
                             "Проверьте корректность работы плагина безопасности"));
-                    System.out.println("✗ " + p.title() + " failed: " + ex.getMessage());
+                    System.out.println(p.title() + " failed: " + ex.getMessage());
                 }
             }
 
-            // тех. пути
             probeCommonPaths(token, List.of("/health", "/", "/.well-known/jwks.json"), openapiRoot, parser);
 
         } finally {
-            // ОТЧЁТЫ — пишем всегда
             System.out.println("Generating reports...");
             var jsonFile = reportWriter.writeJson("Virtual Bank API Report", openapiLocation, baseUrl, findings);
             var pdfFile  = reportWriter.writePdf("Virtual Bank API Report", openapiLocation, baseUrl, findings);
@@ -436,7 +516,6 @@ private void adaptiveDelay() {
             System.out.println("\n=== SCAN COMPLETE ===");
             System.out.println("Total findings: " + findings.size());
             
-            // Статистика по severity
             long highCount = findings.stream().filter(f -> f.severity == Finding.Severity.HIGH).count();
             long mediumCount = findings.stream().filter(f -> f.severity == Finding.Severity.MEDIUM).count();
             long lowCount = findings.stream().filter(f -> f.severity == Finding.Severity.LOW).count();
@@ -445,7 +524,6 @@ private void adaptiveDelay() {
             System.out.println("High: " + highCount + ", Medium: " + mediumCount + 
                               ", Low: " + lowCount + ", Info: " + infoCount);
             
-            // Consent статус
             if (consentId != null) {
                 System.out.println("Consent used: " + consentId);
             } else {
@@ -458,14 +536,13 @@ private void adaptiveDelay() {
         }
     }
 
-    private void probeCommonPaths(String token, List<String> paths, JsonNode openapiRoot, OpenAPIParserSimple parser) throws Exception {
+    private void probeCommonPaths(String token, List<String> paths, JsonNode openapiRoot, OpenAPIParser parser) throws Exception {
         for (String p : paths) {
-            adaptiveDelay(); // Задержка между probe запросами
+            adaptiveDelay();
             
             String url = baseUrl + p;
             Request.Builder rb = new Request.Builder().url(url).get();
             
-            // Очищаем токен перед использованием
             String cleanToken = cleanToken(token);
             if (cleanToken != null && !cleanToken.isBlank()) {
                 rb.addHeader("Authorization", "Bearer " + cleanToken);
@@ -475,7 +552,7 @@ private void adaptiveDelay() {
             log("GET " + url);
             
             try (Response r = http.newCall(rb.build()).execute()) {
-                this.lastStatusCode = r.code(); // Сохраняем для адаптивных задержек
+                this.lastStatusCode = r.code();
                 System.out.println(p + " -> " + r.code());
                 String ct = r.header("Content-Type","application/json");
                 JsonNode schema = null;
@@ -493,71 +570,4 @@ private void adaptiveDelay() {
             }
         }
     }
-private String resolveAccessToken() throws Exception {
-    String token = null;
-    
-    // 1. Проверяем аргумент --auth
-    if (authArg != null && !authArg.isBlank()) {
-        if (authArg.toLowerCase(Locale.ROOT).startsWith("bearer:")) {
-            token = authArg.substring("bearer:".length()).trim();
-            token = cleanToken(token);
-            if (!token.isBlank()) {
-                System.out.println("✓ Access token (from --auth) detected");
-                return token;
-            }
-        }
-    }
-
-    // 2. Проверяем переменную окружения
-    String env = System.getenv("BANK_TOKEN");
-    if (env != null && !env.isBlank()) {
-        token = cleanToken(env);
-        System.out.println("✓ Access token (from env BANK_TOKEN) detected");
-        return token;
-    }
-
-    // 3. Пробуем получить токен через client credentials
-    if (clientId != null && clientSecret != null && 
-        !clientId.isBlank() && !clientSecret.isBlank()) {
-        System.out.println("Attempting to fetch token using client credentials...");
-        return fetchTokenWithClientCredentials();
-    }
-
-    throw new IllegalStateException(
-        "No valid token found. Provide:\n" +
-        "1. --auth 'bearer:YOUR_TOKEN' OR\n" +
-        "2. BANK_TOKEN environment variable OR\n" + 
-        "3. --client-id and --client-secret to fetch token automatically"
-    );
-}
-
-private String fetchTokenWithClientCredentials() throws Exception {
-    String url = baseUrl + "/auth/bank-token?client_id=" + encode(clientId) + 
-                 "&client_secret=" + encode(clientSecret);
-    Request req = new Request.Builder().url(url).post(RequestBody.create(new byte[0])).build();
-    log("POST " + url);
-    
-    try (Response r = http.newCall(req).execute()) {
-        String body = r.body() != null ? r.body().string() : "";
-        System.out.println("Auth response status: " + r.code());
-        
-        if (!r.isSuccessful()) {
-            findings.add(Finding.of("/auth/bank-token", "POST", r.code(), "AuthError",
-                    Finding.Severity.HIGH, 
-                    "Authentication failed: " + r.code(), 
-                    body,
-                    "Проверьте client_id и client_secret. Убедитесь, что они корректны и не истекли."));
-            throw new IllegalStateException("Auth failed: " + r.code());
-        }
-        
-        JsonNode node = om.readTree(body);
-        String token = node.path("access_token").asText();
-        if (token == null || token.isBlank()) {
-            throw new IllegalStateException("Auth response has no access_token");
-        }
-        
-        System.out.println("✓ Access Token received successfully");
-        return token;
-    }
-}
 }

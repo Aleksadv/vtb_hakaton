@@ -8,8 +8,12 @@ import securityscanner.http.RequestExecutor;
 
 import java.util.*;
 
+/**
+ * Плагин для проверки Security Misconfiguration - OWASP API8 
+ * Проверяет типичные ошибки конфигурации безопасности
+ */
 public class SecurityMisconfigPlugin implements SecurityPlugin {
-    @Override public String id() { return "API8:2023-SecurityMisconfig"; }
+    @Override public String id() { return "API8: SecurityMisconfig"; }
     @Override public String title() { return "Security Misconfiguration"; }
     @Override public String description() { return "Проверка типичных misconfiguration"; }
 
@@ -18,7 +22,7 @@ public class SecurityMisconfigPlugin implements SecurityPlugin {
         List<Finding> out = new ArrayList<>();
         RequestExecutor rex = new RequestExecutor(ctx.http, ctx.verbose);
 
-        // Проверка debug эндпоинтов
+        // Проверка debug эндпоинтов и интерфейсов управления
         String[] debugEndpoints = {"/debug", "/actuator", "/metrics", "/health", "/status", "/test"};
         
         Map<String, String> headers = new HashMap<>();
@@ -39,21 +43,24 @@ public class SecurityMisconfigPlugin implements SecurityPlugin {
                     }
                 }
             } catch (Exception e) {
-                // Ignore connection errors
+                // Игнорируем ошибки подключения
             }
         }
 
-        // Проверка заголовков безопасности
+        // Проверка заголовков безопасности на основном эндпоинте
         String mainUrl = ctx.baseUrl + "/accounts";
         try (Response r = rex.get(mainUrl, headers)) {
             checkSecurityHeaders(out, r, mainUrl);
         } catch (Exception e) {
-            // Ignore if accounts endpoint is not accessible
+            // Игнорируем если эндпоинт accounts недоступен
         }
 
         return out;
     }
 
+    /**
+     * Проверяет наличие critical security headers в ответе
+     */
     private void checkSecurityHeaders(List<Finding> out, Response response, String endpoint) {
         Map<String, String> securityHeaders = Map.of(
             "Strict-Transport-Security", "HIGH",

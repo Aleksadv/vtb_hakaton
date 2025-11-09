@@ -4,23 +4,29 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.OkHttpClient;
 import securityscanner.core.model.Finding;
-import securityscanner.parser.OpenAPIParserSimple;
+import securityscanner.parser.OpenAPIParser;
 
 import java.util.List;
 
+/**
+ * Контекст выполнения, передаваемый во все плагины безопасности.
+ * Содержит все необходимые зависимости и данные для работы плагинов.
+ */
 public class ExecutionContext {
-    public final String baseUrl;
-    public final String accessToken;
-    public final String requestingBank;
-    public final String interbankClientId; // client_id вида teamXXX-1, если задан
-    public final String consentId;         // consent-id, если создан
-    public final boolean verbose;
+    public final String baseUrl;              // Базовый URL API
+    public final String accessToken;          // Токен аутентификации
+    public final String requestingBank;       // Идентификатор банка для межбанковских запросов
+    public final String interbankClientId;    // client_id для межбанковских операций
+    public final String consentId;            // ID созданного согласия (consent)
+    public final boolean verbose;             // Режим подробного логирования
 
-    public final OkHttpClient http;
-    public final ObjectMapper om;
-    public final OpenAPIParserSimple parser;
-    public final JsonNode openapiRoot;
+    // Зависимости для работы плагинов
+    public final OkHttpClient http;           // HTTP клиент для запросов
+    public final ObjectMapper om;             // JSON парсер
+    public final OpenAPIParser parser;  // Парсер OpenAPI спецификаций
+    public final JsonNode openapiRoot;        // Корневой узел OpenAPI спецификации
 
+    // Коллекция для накопления результатов проверок
     public final List<Finding> findings;
 
     public ExecutionContext(String baseUrl,
@@ -31,7 +37,7 @@ public class ExecutionContext {
                             boolean verbose,
                             OkHttpClient http,
                             ObjectMapper om,
-                            OpenAPIParserSimple parser,
+                            OpenAPIParser parser,
                             JsonNode openapiRoot,
                             List<Finding> findings) {
         this.baseUrl = baseUrl;
