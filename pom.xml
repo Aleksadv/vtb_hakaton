@@ -19,6 +19,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.source>${java.version}</maven.compiler.source>
     <maven.compiler.target>${java.version}</maven.compiler.target>
+    <reports.dir>${project.basedir}/reports</reports.dir>
   </properties>
 
   <!-- Зависимости проекта -->

@@ -10,6 +10,8 @@ import securityscanner.core.model.Finding;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -21,6 +23,7 @@ import java.util.*;
 public class ReportWriter {
 
     private final ObjectMapper om = new ObjectMapper();
+    private String reportsDir = "reports";
 
     /**
      * Мета-информация для отчета
@@ -30,6 +33,7 @@ public class ReportWriter {
         public String openapi;
         public String baseUrl;
         public String generatedAt;
+        public String bankName;
     }
 
     /**
@@ -41,7 +45,7 @@ public class ReportWriter {
     }
 
     /**
-     * Генерирует отчет в формате JSON
+     * Генерирует отчет в формата JSON
      * @param title заголовок отчета
      * @param openapi путь к OpenAPI спецификации
      * @param baseUrl базовый URL API
@@ -49,17 +53,18 @@ public class ReportWriter {
      * @return файл с JSON отчетом
      */
     public File writeJson(String title, String openapi, String baseUrl, java.util.List<Finding> findings) throws Exception {
-        ensureDir();
+        ensureReportsDir();
         Report r = new Report();
         r.meta = new Meta();
         r.meta.title = title;
         r.meta.openapi = openapi;
         r.meta.baseUrl = baseUrl;
         r.meta.generatedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        r.meta.bankName = extractBankNameFromUrl(baseUrl);
         r.findings = findings;
 
-        String name = "VirtualBankAPI-" + timestamp() + ".json";
-        File file = new File("target/reports/" + name);
+        String name = generateReportName(extractBankCodeFromUrl(baseUrl), "json");
+        File file = new File(reportsDir + "/" + name);
         om.writerWithDefaultPrettyPrinter().writeValue(file, r);
         return file;
     }
@@ -73,9 +78,9 @@ public class ReportWriter {
      * @return файл с PDF отчетом
      */
     public File writePdf(String title, String openapi, String baseUrl, java.util.List<Finding> findings) throws Exception {
-        ensureDir();
-        String name = "VirtualBankAPI-" + timestamp() + ".pdf";
-        File file = new File("target/reports/" + name);
+        ensureReportsDir();
+        String name = generateReportName(extractBankCodeFromUrl(baseUrl), "pdf");
+        File file = new File(reportsDir + "/" + name);
 
         // Создание PDF документа с ландшафтной ориентацией
         Document doc = new Document(PageSize.A4.rotate());
@@ -89,8 +94,11 @@ public class ReportWriter {
         Font txt = new Font(Font.HELVETICA, 8, Font.NORMAL);
         Font bold = new Font(Font.HELVETICA, 8, Font.BOLD);
 
-        // Заголовок отчета
-        doc.add(new Paragraph(title, h1));
+        // Определяем название банка из URL
+        String bankName = getBankDisplayName(baseUrl);
+        
+        // Заголовок отчета с названием банка
+        doc.add(new Paragraph(bankName + " API Security Report", h1));
         doc.add(new Paragraph("OpenAPI: " + openapi, txt));
         doc.add(new Paragraph("Base URL: " + baseUrl, txt));
         doc.add(new Paragraph("Generated: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), txt));
@@ -226,6 +234,54 @@ public class ReportWriter {
     }
 
     /**
+     * Извлекает код банка из URL для имени файла
+     */
+    private String extractBankCodeFromUrl(String url) {
+        if (url == null) return "unknown";
+        if (url.contains("vbank")) return "VirtualBank";
+        if (url.contains("abank")) return "AwesomeBank";
+        if (url.contains("sbank")) return "SmartBank";
+        return "UnknownBank";
+    }
+
+    /**
+     * Извлекает полное название банка из URL
+     */
+    private String extractBankNameFromUrl(String url) {
+        if (url == null) return "Unknown Bank";
+        if (url.contains("vbank")) return "Virtual Bank";
+        if (url.contains("abank")) return "Awesome Bank";
+        if (url.contains("sbank")) return "Smart Bank";
+        return "Unknown Bank";
+    }
+
+    /**
+     * Возвращает отображаемое название банка
+     */
+    private String getBankDisplayName(String baseUrl) {
+        return extractBankNameFromUrl(baseUrl);
+    }
+
+    /**
+     * Генерирует имя файла отчета с кодом банка и timestamp
+     */
+    private String generateReportName(String bankCode, String extension) {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        return bankCode + "-SecurityReport-" + timestamp + "." + extension;
+    }
+
+    /**
+     * Создает папку reports если она не существует
+     */
+    private void ensureReportsDir() throws Exception {
+        Path reportsPath = Paths.get(reportsDir);
+        if (!Files.exists(reportsPath)) {
+            Files.createDirectories(reportsPath);
+            System.out.println("Created reports directory: " + reportsPath.toAbsolutePath());
+        }
+    }
+
+    /**
      * Создает ячейку таблицы PDF с заданным содержимым и шрифтом
      */
     private PdfPCell createCell(String content, Font font) {
@@ -257,20 +313,6 @@ public class ReportWriter {
         }
         
         return "General Security";
-    }
-
-    /**
-     * Генерирует timestamp для имени файла
-     */
-    private static String timestamp() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-    }
-    
-    /**
-     * Создает директорию для отчетов если она не существует
-     */
-    private static void ensureDir() throws Exception {
-        Files.createDirectories(new File("target/reports").toPath());
     }
     
     /**

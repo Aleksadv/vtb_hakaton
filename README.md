@@ -6,6 +6,7 @@ api-security-scanner/
 ├── README.md
 ├── run_scan.ps1
 ├── .gitignore
+├── reports/     # Отчёты
 ├── target/
 │   └── reports/
 │       ├── VirtualBankAPI-YYYYMMDD-HHMMSS.json
@@ -56,10 +57,15 @@ api-security-scanner/
 
 Автоматизированный сканер безопасности API для банковских систем.
 
+## Сборка 
+```powershell
+mvn clean compile package
+```
+
 ## Быстрый запуск
 
 ```powershell
-.\run_scan.ps1
+powershell -ExecutionPolicy Bypass -File "run_scan.ps1"
 ```
 
 Скрипт `run_scan.ps1` содержит все необходимые параметры для подключения к тестовому стенду Virtual Bank API.
