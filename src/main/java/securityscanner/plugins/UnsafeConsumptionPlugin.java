@@ -1,6 +1,5 @@
 package securityscanner.plugins;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.Response;
 import securityscanner.core.ExecutionContext;
 import securityscanner.core.SecurityPlugin;
@@ -10,7 +9,7 @@ import securityscanner.http.RequestExecutor;
 import java.util.*;
 
 public class UnsafeConsumptionPlugin implements SecurityPlugin {
-    private final ObjectMapper om = new ObjectMapper();
+    // УДАЛЕНО неиспользуемое поле: private final ObjectMapper om = new ObjectMapper();
     
     @Override public String id() { return "API10:UnsafeConsumption"; }
     @Override public String title() { return "Unsafe Consumption of APIs"; }
@@ -78,7 +77,8 @@ public class UnsafeConsumptionPlugin implements SecurityPlugin {
         if (ctx.accessToken != null) headers.put("Authorization", "Bearer " + ctx.accessToken);
 
         for (String payload : ssrfPayloads) {
-            String testUrl = ctx.baseUrl + "/webhooks?url=" + java.net.URLEncoder.encode(payload);
+            // ИСПРАВЛЕНО: использование современного метода encode
+            String testUrl = ctx.baseUrl + "/webhooks?url=" + java.net.URLEncoder.encode(payload, java.nio.charset.StandardCharsets.UTF_8);
             
             try (Response r = rex.get(testUrl, headers)) {
                 if (r.isSuccessful()) {

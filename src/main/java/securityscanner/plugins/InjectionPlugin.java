@@ -29,8 +29,8 @@ public class InjectionPlugin implements SecurityPlugin {
         // NoSQL инъекции
         String[] nosqlPayloads = {"{\"$ne\": \"invalid\"}", "{\"$gt\": \"\"}", "{\"$where\": \"1==1\"}"};
         
-        // Командные инъекции
-        String[] commandPayloads = {"| whoami", "; ls -la", "`id`", "$(cat /etc/passwd)"};
+        // Командные инъекции - УДАЛЕНО неиспользуемая переменная
+        // String[] commandPayloads = {"| whoami", "; ls -la", "`id`", "$(cat /etc/passwd)"};
 
         Map<String, String> headers = new HashMap<>();
         if (ctx.accessToken != null) headers.put("Authorization", "Bearer " + ctx.accessToken);
