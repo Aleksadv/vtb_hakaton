@@ -193,6 +193,7 @@ public class ReportWriter {
         
         // Заголовок отчета с названием банка
         doc.add(new Paragraph(bankName + " API Security Report", h1));
+        doc.add(new Paragraph("OpenAPI: " + openapi, txt));
         doc.add(new Paragraph("Base URL: " + baseUrl, txt));
         doc.add(new Paragraph("Generated: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")), txt));
         doc.add(new Paragraph(" ", txt));
